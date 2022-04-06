@@ -1,0 +1,6 @@
+pyautogui
+pywin32
+keyboard
+opencv-python
+Pillow
+matplotlib
