@@ -4,8 +4,8 @@ This is a demo project for how you can use your PC to automatically control
 your Android mobile phone. And for demo purpose we try to auto click
 DingDong(叮咚买菜)'s shopping cart a little bit.
 
-Disclaimer: This is only for studying and demoing the idea from technology
-aspect! 仅供学习研究之用！
+## Disclaimer
+This is only for studying and demoing the idea from technology aspect! 仅供学习研究之用！
 
 ## Install
 
@@ -18,7 +18,10 @@ choco install scrcpy
 choco install adb
 ```
 
-Install Python 3. And make sure it's runnable from Windows Command.
+See also https://github.com/Genymobile/scrcpy for other ways to install scrcpy.
+
+Install Python 3 (for example, from https://www.python.org/downloads/).
+And make sure it's runnable from Windows Command.
 And install Python dependencies from requirements.txt.
 For example if you use venv,
 
@@ -34,7 +37,7 @@ pip install -r requirements.txt
 
 ## Run
 
-Run both scrcpy and the script in your normal user mode.
+Run both scrcpy and the script in your normal user mode. Administrator mode is not needed.
 
 ### Perparations
 
@@ -47,6 +50,22 @@ And make sure scrcpy window is sized properly so that the mobile UI takes the wh
 
 ### Run the script
 
-1. From a second Windows Command, `python android_clicker.py your-mobile-phone-window-name`
-1. Once the condition's met, it will notify by ringing.
-1. Press Ctrl+C to terminate the script.
+1. From a second Windows Command,
+
+    ```
+    # Within your Python environment.
+    # i.e. if you use venv you need activate it.
+    python android_clicker.py your-mobile-phone-window-name
+    ```
+1. Once the condition's met, it will notify by beeping.
+1. To terminate the script, press `ESC` key and it will finish after current iteration of the loop.
+
+### For development: Run in verbose and debug mode
+
+```
+# --debuglevel=1 can show DingDong time slot check box
+python android_clicker.py your-mobile-phone-window-name --verbose --debuglevel=1
+
+# --debuglevel=2 can enable pause
+python android_clicker.py your-mobile-phone-window-name --verbose --debuglevel=2
+```
