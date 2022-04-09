@@ -1,18 +1,14 @@
-import sys
-import os
+import argparse
 from abc import ABC, abstractmethod
 from collections import namedtuple
-import argparse
 from tempfile import NamedTemporaryFile
 import time
-import random
 from turtle import left
 from numbers import Number
 from typing import NamedTuple, Optional
 import logging
 
 import win32gui, win32ui
-import win32api
 import win32con
 import winsound
 
@@ -99,20 +95,19 @@ class MobileClickerBase(ABC):
                 % name
             )
         self.hwnd = hwnd
-        self.screen_scale = screen_scale or 1
+        self.screen_scale = screen_scale or 1  # not really used now
         self.debug_level = debug_level or 0
-        self.cancel = False
+        self.cancel = False  # flag to indicate cancel execution
         self.position_back = self.position(0.7, 0.96)
         logger.debug("Window rectangle: %s", self.rect)
 
-    def back(self, *, sleep=None):
+    def back(self, *, sleep=0.5):
         logger.debug("Android back button ...")
         pos = self.cursor_position()
         if not pos.is_in(self.rect):
             pyautogui.moveTo(self.position_back())
         pyautogui.click(button="right")
-        if sleep is None:
-            sleep = random.uniform(0.5, 1.0)
+
         time.sleep(sleep)
 
     @classmethod
@@ -122,7 +117,7 @@ class MobileClickerBase(ABC):
         """
         return win32gui.FindWindow(0, name)
 
-    # TODO: cache rect and listen on window move event to refresh cache
+    # TODO: maybe cache rect and listen on window move event to refresh cache?
     @property
     def rect(self) -> Rectangle:
         """Get window rectangle.
@@ -196,25 +191,25 @@ class MobileClickerBase(ABC):
     def move_cursor(self, pos: Point):
         logger.debug("Moving mouse to %s ...", pos)
         pyautogui.moveTo(*pos)
-        # time.sleep(0.1)
 
-    def click(self, pos: Point, *, button="left", sleep=None):
+    def click(self, pos: Point, *, button="left", sleep=0.5):
         logger.debug("Clicking mouse at %s ...", pos)
         pyautogui.moveTo(*pos)
         pyautogui.click(button=button)
-        if sleep is None:
-            sleep = random.uniform(0.5, 1.0)
+
         time.sleep(sleep)
 
-    def drag_down(
-        self, pos: Point, distance: int, duration: float = 0.1, *, sleep=None
-    ):
+    def drag_down(self, pos: Point, distance: int, duration: float = 0.1, *, sleep=0.5):
+        """Drag down can usually be used for page refreshing for mobile app."""
+
+        # Ideally I should be able to use pyautogui.drag(),
+        # but don't know why but drag() seems to have chance to mis-click.
+        # So I implement drag() myself..
         pyautogui.moveTo(pos)
         pyautogui.mouseDown(button="left")
         pyautogui.move(0, distance)
         pyautogui.mouseUp()
-        if sleep is None:
-            sleep = random.uniform(0.5, 1.0)
+
         time.sleep(sleep)
 
     def pause(self):
@@ -223,15 +218,37 @@ class MobileClickerBase(ABC):
             self.cursor_position()
             input("Press Enter to continue...")
 
+    def log_cursor_position(self):
+        pos = self.cursor_position()
+        rect = self.rect
+        if pos.is_in(rect):
+            pos_rel = pos.offset(-rect.left, -rect.top)
+            factor = (pos_rel.x / rect.width, pos_rel.y / rect.height)
+            logger.info(
+                "Cursor position: absolute: %s, relative: %s, relative factor: %s",
+                pos,
+                pos_rel,
+                factor,
+            )
+        else:
+            logger.info("Cursor position: absolute: %s", pos)
+
 
 class DingDong(MobileClickerBase):
+
+    CHECK_BOX_YOFFSET_FACTOR = 0.055
+    TIME_SLOTS_TO_CHECK = 5
+    POSITION_PAY_FACTOR = (0.8, 0.9)
+    POSITION_SUBMIT_CART_FACTOR = (0.85, 0.85)
+    POSITION_DRAG_DOWN_FACTOR = (0.5, 0.3)
+    RECT_CHECK_TIME_SLOT_FACTOR = (0.36, 0.48, 0.7, 0.52)
+
     def __init__(self, name, *args, **kwargs):
         super().__init__(name, *args, **kwargs)
-        self.position_pay = self.position(0.8, 0.9)
-        self.position_goto_pay = self.position(0.85, 0.85)
-        self.position_close_time_selector = self.position(0.91, 0.45)
-        self.position_drag_down = self.position(0.5, 0.3)
-        self.rect_check_pay = self.area(0.36, 0.48, 0.7, 0.52)
+        self.position_pay = self.position(*self.POSITION_PAY_FACTOR)
+        self.position_submit_cart = self.position(*self.POSITION_SUBMIT_CART_FACTOR)
+        self.position_drag_down = self.position(*self.POSITION_DRAG_DOWN_FACTOR)
+        self.rect_check_time_slot = self.area(*self.RECT_CHECK_TIME_SLOT_FACTOR)
 
     def check_pay_ready(self) -> bool:
         """Check "deliver time" area:
@@ -239,26 +256,26 @@ class DingDong(MobileClickerBase):
         When it's deliverable, font color in the area is dark.
         And we use OpenCV to process it.
         """
-        window_rect = self.rect
-        window_height = window_rect.bottom - window_rect.top
-        first_check_rect = self.rect_check_pay()
-        check_box_yoffset_factor = 0.055
-        time_slots_to_check = 5
+        window_height = self.rect.height
+        first_check_rect = self.rect_check_time_slot()
 
         # check 4 deliver time boxes
-        logger.debug("Will check %s delivery time slots", time_slots_to_check)
+        logger.debug("Will check %s delivery time slots", self.TIME_SLOTS_TO_CHECK)
         rects_to_check = (
             first_check_rect.offset(
-                0, int(window_height * check_box_yoffset_factor * i)
+                0, int(window_height * self.CHECK_BOX_YOFFSET_FACTOR * i)
             )
-            for i in range(time_slots_to_check)
+            for i in range(self.TIME_SLOTS_TO_CHECK)
         )
 
         for i, rect in enumerate(rects_to_check):
             logger.debug("Checking rect: %s", rect)
 
             rect_real = rect
+
+            # TODO: Seems screen_scale factor is not needed? But did I thought it's needed on first day of this project?
             # rect_real = rect.scale(self.screen_scale)
+
             if self.debug_level > 0:
                 self.show_rect(rect_real, padding=2)
                 time.sleep(1)
@@ -283,41 +300,45 @@ class DingDong(MobileClickerBase):
                 logger.warning("Pay is ready at check box %s!!", i)
                 self.click(rect.middle)
                 return True
-        logger.info("Sigh.. Not payable yet.")
+        logger.info("Sigh.. No delivery time slot.")
         return False
 
-    def refresh(self):
-        logger.info("Refreshing page...")
+    def refresh(self, *, sleep=0.5):
+        logger.info("Refreshing shopping cart page...")
         self.drag_down(self.position_drag_down(), self.rect.height / 3)
+        time.sleep(sleep)
 
     def check_one(self) -> bool:
-        self.refresh()
+        self.refresh(sleep=1)
 
         self.pause()
-        pos_goto_pay = self.position_goto_pay()
-        self.click(pos_goto_pay)
+        pos_goto_pay = self.position_submit_cart()
+        self.click(pos_goto_pay, sleep=0.5)
 
         self.pause()
         pos_pay = self.position_pay()
-        self.click(pos_pay)
+        self.click(pos_pay, sleep=0.5)
 
         self.pause()
         if self.check_pay_ready():
             # Now we should be able to pay!
-            self.click(pos_pay)
+            self.click(pos_pay, sleep=0.5)
             return True
 
         # get back to the shopping cart page
-        self.back(sleep=0.5)
-        self.back(sleep=0.5)
+        self.back(sleep=0.2)
+        self.back(sleep=0.2)
         return False
 
 
-def onkeypress(obj):
+def onkeypress(obj: MobileClickerBase):
     def callback(event):
-        if event.name == "esc":
+        if event.name == "esc":  # Terminate on ESC
             logger.warning("Cancel signal detected!!")
             obj.cancel = True
+
+        elif event.name == "p":  # show cursor position on p, for debug
+            obj.log_cursor_position()
 
     return callback
 
@@ -328,20 +349,33 @@ if __name__ == "__main__":
     parser.add_argument("name", type=str, help="Mobile phone window name.")
     parser.add_argument("--verbose", action="store_true", help="verbose mode.")
     parser.add_argument(
+        "--study", action="store_true", help="Only for studying cursor position."
+    )
+    parser.add_argument(
         "--debuglevel",
         type=int,
-        help="For debug. If debuglevel > 1, pause() will take effect.",
+        default=0,
+        help=(
+            "For debug. "
+            "If debuglevel > 1, it will run only one check iteration, and pause() will take effect."
+        ),
     )
     args = parser.parse_args()
+    if args.study:
+        args.verbose = True
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     dingdong = DingDong(args.name, screen_scale=1.5, debug_level=args.debuglevel)
     keyboard.on_press(onkeypress(dingdong))
 
-    if args.debuglevel:
+    if args.study:
+        while True:
+            time.sleep(0.1)
+            if dingdong.cancel:
+                break
+    elif args.debuglevel > 1:
         dingdong.cursor_position()
         dingdong.check_one()
-        sys.exit(0)
-
-    dingdong.check_loop()
+    else:
+        dingdong.check_loop()

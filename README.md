@@ -48,6 +48,20 @@ Make sure it pop up a Window for your mobile phone.
 And make sure scrcpy window is sized properly so that the mobile UI takes the whole window.
 1. Prepare your DingDong shopping cart.
 
+### Adjusting contants
+
+I am not sure but depending on your Android device, e.g. if it has different
+resolution from my OnePlus 8T, you may need to adjust the constants
+XXX_FACTOR in the DingDong class source.
+
+```
+# Within your Python environment.
+# i.e. if you use venv you need activate it.
+python android_clicker.py your-mobile-phone-window-name --study
+```
+
+You can press "p" key to see the cursor position info from log.
+
 ### Run the script
 
 1. From a second Windows Command,
