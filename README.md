@@ -54,6 +54,7 @@ I am not sure but depending on your Android device, e.g. if it has different
 resolution from my OnePlus 8T, you may need to adjust the constants
 XXX_FACTOR in the DingDong class source.
 
+And there is a "study" mode for you to know the coordinates of mouse cursor.
 ```
 # Within your Python environment.
 # i.e. if you use venv you need activate it.
